@@ -1,17 +1,27 @@
 /**
  * Archivo: main.c
- * Descripción: Aplicación de ejemplo para el control de pantallas OLED SSD1306 con ESP32.
- *              Este archivo demuestra la inicialización y uso básico de la biblioteca SSD1306
- *              con soporte para interfaces I2C y SPI.
+ * Descripción: Sistema de monitoreo de temperatura y humedad con ESP32.
+ *              Aplicación completa que integra sensor DHT11, pantalla OLED SSD1306,
+ *              servidor web HTTP y comunicación WebSocket para visualización en tiempo real.
+ * 
+ * Funcionalidades principales:
+ *  - Lectura de temperatura y humedad del sensor DHT11
+ *  - Visualización local en pantalla OLED SSD1306 (I2C)
+ *  - Servidor web HTTP con archivos estáticos desde SPIFFS
+ *  - Comunicación WebSocket para actualización en tiempo real
+ *  - Configuración WiFi mediante archivo de configuración en SPIFFS
+ *  - Interfaz web moderna y responsive
+ * 
  * Autor: migbertweb
  * Fecha: 21/11/2025
  * Repositorio: https://github.com/migbertweb/DHT11_Oled_Info
  * Licencia: MIT License
  * 
- * Uso: Este archivo contiene el punto de entrada de la aplicación y demuestra cómo:
- *      1. Inicializar la pantalla SSD1306 mediante I2C o SPI
- *      2. Mostrar texto y gráficos básicos
- *      3. Utilizar las funciones de la biblioteca SSD1306
+ * Estructura del código:
+ *  - Inicialización: NVS, SPIFFS, WiFi, servidor HTTP
+ *  - Handlers HTTP: Página principal, CSS, JavaScript, WebSocket
+ *  - Tarea DHT11: Lectura periódica del sensor y actualización de displays
+ *  - WebSocket: Envío de datos en tiempo real a clientes conectados
  *
  * Nota: Este proyecto usa Licencia MIT. Se recomienda (no obliga) mantener 
  * derivados como código libre, especialmente para fines educativos.

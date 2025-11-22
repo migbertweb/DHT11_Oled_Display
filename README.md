@@ -1,14 +1,16 @@
 # DHT11 Sensor with OLED Display & WebSocket Monitor on ESP32
 
-Este proyecto implementa un monitor de temperatura y humedad utilizando un sensor DHT11, una pantalla OLED SSD1306 y un servidor web con WebSocket para visualización en tiempo real.
+Este proyecto implementa un sistema completo de monitoreo de temperatura y humedad utilizando un sensor DHT11, una pantalla OLED SSD1306 y un servidor web con WebSocket para visualización en tiempo real desde cualquier dispositivo conectado a la red.
 
 ## Características
 
-- **Lectura de Sensor**: Temperatura y humedad del sensor DHT11.
-- **Pantalla OLED**: Visualización local en tiempo real.
-- **Monitor Web**: Interfaz web moderna alojada en el ESP32 (SPIFFS).
-- **WebSocket**: Actualización de datos en tiempo real en el navegador.
-- **Configuración WiFi**: Credenciales leídas desde archivo `config.txt` en SPIFFS.
+- **Lectura de Sensor**: Temperatura y humedad del sensor DHT11 con actualización cada 5 segundos.
+- **Pantalla OLED**: Visualización local en tiempo real en pantalla SSD1306 (128x64, I2C).
+- **Monitor Web**: Interfaz web moderna y responsive alojada en el ESP32 (SPIFFS).
+- **WebSocket**: Comunicación bidireccional para actualización de datos en tiempo real en el navegador.
+- **Configuración WiFi**: Credenciales leídas desde archivo `config.txt` en SPIFFS (sin hardcodear).
+- **Servidor HTTP**: Servidor web completo con soporte para archivos estáticos (HTML, CSS, JS).
+- **Sistema de archivos**: Uso de SPIFFS para almacenar archivos web y configuración.
 
 ## Hardware Requerido
 
@@ -64,25 +66,57 @@ Ejecuta `idf.py menuconfig` para ajustar los pines si es necesario.
 
 ## Uso
 
-1. Al arrancar, el ESP32 intentará conectarse a la red WiFi configurada.
-2. La dirección IP asignada se mostrará en el log del monitor serial (`idf.py monitor`).
-3. Abre esa dirección IP en un navegador web (PC o Móvil).
-4. Verás los datos del sensor actualizándose en tiempo real.
+1. **Configurar WiFi**: Edita `storage/config.txt` con tu SSID y contraseña WiFi.
+2. **Compilar y flashear**: Ejecuta `idf.py build flash` para compilar y cargar el firmware.
+3. **Monitorear**: Conecta el monitor serial (`idf.py monitor`) para ver los logs del sistema.
+4. **Conectar**: El ESP32 intentará conectarse automáticamente a la red WiFi configurada.
+5. **Acceder**: Una vez conectado, la dirección IP se mostrará en los logs. Ábrela en cualquier navegador.
+6. **Visualizar**: La interfaz web mostrará los datos del sensor actualizándose en tiempo real mediante WebSocket.
+
+### Características de la interfaz web
+
+- **Estado de conexión**: Indicador visual del estado de la conexión WebSocket.
+- **Actualización automática**: Los datos se actualizan cada 5 segundos sin recargar la página.
+- **Diseño responsive**: Funciona correctamente en dispositivos móviles y de escritorio.
+- **Reconexión automática**: Si se pierde la conexión, el cliente intenta reconectarse automáticamente.
 
 ## Estructura del Proyecto
 
 ```
 DHT11_Oled_Info/
-├── components/     # Componentes (dht, ssd1306)
-├── main/          
-│   └── main.c      # Código principal (App, WiFi, WebServer)
-├── storage/        # Archivos Web y Configuración (SPIFFS)
-│   ├── index.html
-│   ├── style.css
-│   ├── main.js
-│   └── config.txt
-├── CMakeLists.txt
-└── partitions.csv  # Tabla de particiones personalizada
+├── components/           # Componentes externos
+│   ├── esp-idf-lib__dht/ # Biblioteca para sensor DHT11
+│   └── ssd1306/         # Biblioteca para pantalla OLED SSD1306
+├── main/                 # Código principal de la aplicación
+│   └── main.c           # App principal (WiFi, WebServer, WebSocket, DHT11)
+├── storage/             # Archivos Web y Configuración (SPIFFS)
+│   ├── index.html       # Página principal de la interfaz web
+│   ├── style.css        # Estilos CSS para la interfaz
+│   ├── main.js          # JavaScript para WebSocket y actualización de datos
+│   └── config.txt       # Configuración WiFi (SSID y contraseña)
+├── build/               # Archivos de compilación (generado)
+├── CMakeLists.txt       # Configuración de CMake
+├── partitions.csv       # Tabla de particiones personalizada (incluye SPIFFS)
+├── sdkconfig            # Configuración del proyecto ESP-IDF
+└── README.md            # Este archivo
+```
+
+## Arquitectura del Sistema
+
+### Componentes principales
+
+1. **Sensor DHT11**: Lectura de temperatura y humedad cada 5 segundos.
+2. **Pantalla OLED**: Muestra información del sistema y lecturas del sensor.
+3. **Servidor HTTP**: Sirve archivos estáticos y maneja conexiones WebSocket.
+4. **WebSocket**: Comunicación en tiempo real entre ESP32 y clientes web.
+5. **SPIFFS**: Sistema de archivos para almacenar configuración y archivos web.
+
+### Flujo de datos
+
+```
+DHT11 → ESP32 → [OLED Display] + [WebSocket] → Navegador Web
+                ↓
+            Logs Serial
 ```
 
 ## Licencia

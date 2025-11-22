@@ -1,3 +1,21 @@
+/**
+ * Archivo: style.css
+ * Descripción: Estilos CSS para la interfaz web del monitor DHT11.
+ *              Diseño moderno, responsive y con animaciones suaves.
+ * 
+ * Características:
+ *  - Diseño responsive (móvil y escritorio)
+ *  - Variables CSS para fácil personalización
+ *  - Animaciones y transiciones suaves
+ *  - Gradientes y efectos visuales modernos
+ *  - Indicadores de estado visuales
+ * 
+ * Autor: migbertweb
+ * Fecha: 21/11/2025
+ * Proyecto: DHT11_Oled_Info
+ */
+
+/* Variables CSS para colores y valores reutilizables */
 :root {
     --primary-color: #3498db;
     --secondary-color: #2ecc71;
@@ -9,12 +27,14 @@
     --transition: all 0.3s ease;
 }
 
+/* Reset básico de estilos */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* Estilos del cuerpo de la página */
 body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -25,9 +45,10 @@ body {
     padding: 1rem;
 }
 
+/* Contenedor principal de la aplicación */
 .container {
     background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px); /* Efecto de vidrio esmerilado */
     padding: 2.5rem;
     border-radius: 20px;
     box-shadow: var(--shadow);
@@ -38,6 +59,7 @@ body {
     animation: fadeIn 0.8s ease-out;
 }
 
+/* Animación de entrada suave */
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -49,6 +71,7 @@ body {
     }
 }
 
+/* Título principal */
 h1 {
     color: var(--dark-color);
     margin-bottom: 0.5rem;
@@ -56,6 +79,7 @@ h1 {
     font-weight: 600;
 }
 
+/* Indicador de estado de conexión WebSocket */
 .status {
     font-size: 0.9rem;
     font-weight: 500;
@@ -66,18 +90,21 @@ h1 {
     transition: var(--transition);
 }
 
+/* Estado: Conectado (verde) */
 .status.connected {
     background-color: rgba(46, 204, 113, 0.1);
     color: var(--secondary-color);
     border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
+/* Estado: Desconectado (rojo) */
 .status.disconnected {
     background-color: rgba(231, 76, 60, 0.1);
     color: var(--danger-color);
     border: 1px solid rgba(231, 76, 60, 0.3);
 }
 
+/* Grid de tarjetas para mostrar los datos */
 .cards {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -85,6 +112,7 @@ h1 {
     margin-top: 1rem;
 }
 
+/* Tarjeta individual para cada métrica */
 .card {
     background: linear-gradient(145deg, #ffffff, #f8f9fa);
     padding: 1.8rem 1rem;
@@ -96,6 +124,7 @@ h1 {
     overflow: hidden;
 }
 
+/* Barra superior decorativa de la tarjeta */
 .card::before {
     content: '';
     position: absolute;
@@ -106,19 +135,23 @@ h1 {
     background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
 }
 
+/* Efecto hover: elevación de la tarjeta */
 .card:hover {
     transform: translateY(-8px);
     box-shadow: 0 12px 30px rgba(0,0,0,0.15);
 }
 
+/* Barra decorativa específica para la tarjeta de temperatura (naranja) */
 .card:nth-child(1)::before {
     background: linear-gradient(90deg, #ff7e5f, #feb47b);
 }
 
+/* Barra decorativa específica para la tarjeta de humedad (azul) */
 .card:nth-child(2)::before {
     background: linear-gradient(90deg, #4facfe, #00f2fe);
 }
 
+/* Título de la tarjeta (Temperatura/Humedad) */
 .card h2 {
     font-size: 1rem;
     color: var(--text-color);
@@ -128,6 +161,7 @@ h1 {
     letter-spacing: 0.5px;
 }
 
+/* Valor numérico principal (temperatura/humedad) */
 .value {
     font-size: 2.8rem;
     font-weight: 700;
@@ -136,29 +170,36 @@ h1 {
     transition: var(--transition);
 }
 
+/* Unidad de medida (°C o %) */
 .unit {
     font-size: 1rem;
     color: #7f8c8d;
     font-weight: 500;
 }
 
-/* Efecto de carga para valores */
+/* Placeholder cuando no hay valor disponible */
 .value:empty::before {
     content: '--';
     color: #bdc3c7;
 }
 
-/* Responsive */
+/* ============================================
+   MEDIA QUERIES - Diseño Responsive
+   ============================================ */
+
+/* Estilos para dispositivos móviles (pantallas pequeñas) */
 @media (max-width: 480px) {
     .container {
         padding: 2rem 1.5rem;
     }
     
+    /* Cambiar a una columna en móviles */
     .cards {
         grid-template-columns: 1fr;
         gap: 1rem;
     }
     
+    /* Reducir tamaño de fuente en móviles */
     .value {
         font-size: 2.5rem;
     }
@@ -168,7 +209,11 @@ h1 {
     }
 }
 
-/* Efecto de pulso para el estado conectado */
+/* ============================================
+   ANIMACIONES
+   ============================================ */
+
+/* Animación de pulso para el indicador de estado conectado */
 @keyframes pulse {
     0% {
         box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.4);
@@ -181,6 +226,7 @@ h1 {
     }
 }
 
+/* Aplicar animación de pulso cuando está conectado */
 .status.connected {
     animation: pulse 2s infinite;
 }

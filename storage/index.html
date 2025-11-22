@@ -1,4 +1,20 @@
 <!DOCTYPE html>
+<!--
+ * Archivo: index.html
+ * Descripción: Página principal de la interfaz web para el monitor DHT11.
+ *              Interfaz moderna y responsive que muestra temperatura y humedad
+ *              en tiempo real mediante comunicación WebSocket.
+ * 
+ * Estructura:
+ *  - Contenedor principal con diseño centrado
+ *  - Indicador de estado de conexión WebSocket
+ *  - Tarjetas para mostrar temperatura y humedad
+ *  - Script JavaScript para manejo de WebSocket
+ * 
+ * Autor: migbertweb
+ * Fecha: 21/11/2025
+ * Proyecto: DHT11_Oled_Info
+-->
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -7,17 +23,25 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Contenedor principal de la aplicación -->
     <div class="container">
+        <!-- Título principal -->
         <h1>Monitor DHT11</h1>
+        
+        <!-- Indicador de estado de conexión WebSocket -->
+        <!-- Se actualiza dinámicamente mediante JavaScript -->
         <div class="status" id="status">Desconectado</div>
         
+        <!-- Grid de tarjetas para mostrar los datos del sensor -->
         <div class="cards">
+            <!-- Tarjeta de temperatura -->
             <div class="card">
                 <h2>Temperatura</h2>
                 <div class="value" id="temp">--</div>
                 <div class="unit">°C</div>
             </div>
             
+            <!-- Tarjeta de humedad -->
             <div class="card">
                 <h2>Humedad</h2>
                 <div class="value" id="hum">--</div>
@@ -25,6 +49,8 @@
             </div>
         </div>
     </div>
+    
+    <!-- Script para manejo de WebSocket y actualización de datos -->
     <script src="main.js"></script>
 </body>
 </html>
