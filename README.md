@@ -1,21 +1,20 @@
-# DHT11 Sensor with OLED Display on ESP32
+# DHT11 Sensor with OLED Display & WebSocket Monitor on ESP32
 
-Este proyecto implementa la lectura de un sensor de temperatura y humedad DHT11 y muestra los resultados en una pantalla OLED utilizando un microcontrolador ESP32. El proyecto está desarrollado utilizando el framework ESP-IDF.
+Este proyecto implementa un monitor de temperatura y humedad utilizando un sensor DHT11, una pantalla OLED SSD1306 y un servidor web con WebSocket para visualización en tiempo real.
 
 ## Características
 
-- Lectura de temperatura y humedad del sensor DHT11
-- Visualización en tiempo real en pantalla OLED SSD1306
-- Interfaz I2C para la comunicación con la pantalla
-- Fácil de configurar y personalizar
-- Código documentado y modular
+- **Lectura de Sensor**: Temperatura y humedad del sensor DHT11.
+- **Pantalla OLED**: Visualización local en tiempo real.
+- **Monitor Web**: Interfaz web moderna alojada en el ESP32 (SPIFFS).
+- **WebSocket**: Actualización de datos en tiempo real en el navegador.
+- **Configuración WiFi**: Credenciales leídas desde archivo `config.txt` en SPIFFS.
 
 ## Hardware Requerido
 
 - Placa ESP32 (probado con ESP32-C3)
 - Sensor DHT11
-- Pantalla OLED SSD1306 (128x64 píxeles)
-- Resistencias de pull-up (si son necesarias)
+- Pantalla OLED SSD1306 (128x64 píxeles, I2C)
 - Cables de conexión
 
 ## Conexiones
@@ -33,35 +32,57 @@ Este proyecto implementa la lectura de un sensor de temperatura y humedad DHT11 
 
 ## Configuración
 
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/migbertweb/DHT11_Oled_Info.git
-   cd DHT11_Oled_Info
-   ```
+### 1. Clonar el repositorio
+```bash
+git clone https://github.com/migbertweb/DHT11_Oled_Info.git
+cd DHT11_Oled_Info
+```
 
-2. Configura el proyecto con `menuconfig` para ajustar los pines según tu hardware:
-   ```bash
-   idf.py menuconfig
-   ```
+### 2. Configuración WiFi
+Edita el archivo `storage/config.txt` con tus credenciales WiFi:
+```text
+TU_SSID
+TU_PASSWORD
+```
+Este archivo se subirá a la partición SPIFFS del ESP32.
 
-3. Compila y flashea el proyecto:
+### 3. Configuración del Hardware
+Ejecuta `idf.py menuconfig` para ajustar los pines si es necesario.
+
+## Compilación y Flasheo
+
+1. **Compilar el proyecto**:
    ```bash
    idf.py build
-   idf.py -p /dev/ttyUSB0 flash monitor
    ```
-   (Reemplaza `/dev/ttyUSB0` con el puerto serie correspondiente)
+
+2. **Flashear (incluyendo SPIFFS)**:
+   El sistema de construcción generará automáticamente la imagen de la partición `storage` con los archivos de la carpeta `storage/`.
+   ```bash
+   idf.py flash monitor
+   ```
+
+## Uso
+
+1. Al arrancar, el ESP32 intentará conectarse a la red WiFi configurada.
+2. La dirección IP asignada se mostrará en el log del monitor serial (`idf.py monitor`).
+3. Abre esa dirección IP en un navegador web (PC o Móvil).
+4. Verás los datos del sensor actualizándose en tiempo real.
 
 ## Estructura del Proyecto
 
 ```
 DHT11_Oled_Info/
-├── components/     # Componentes personalizados
-│   ├── dht/       # Controlador DHT11
-│   └── ssd1306/   # Controlador pantalla OLED
+├── components/     # Componentes (dht, ssd1306)
 ├── main/          
-│   └── main.c     # Código principal de la aplicación
-├── CMakeLists.txt # Configuración del sistema de compilación
-└── sdkconfig      # Configuración del proyecto
+│   └── main.c      # Código principal (App, WiFi, WebServer)
+├── storage/        # Archivos Web y Configuración (SPIFFS)
+│   ├── index.html
+│   ├── style.css
+│   ├── main.js
+│   └── config.txt
+├── CMakeLists.txt
+└── partitions.csv  # Tabla de particiones personalizada
 ```
 
 ## Licencia
@@ -71,11 +92,6 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 ## Autor
 
 Migbertweb - [GitHub](https://github.com/migbertweb)
-
-## Agradecimientos
-
-- A los desarrolladores de ESP-IDF
-- A los contribuidores de las bibliotecas DHT y SSD1306
 
 ---
 

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor DHT11 ESP32</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Monitor DHT11</h1>
+        <div class="status" id="status">Desconectado</div>
+        
+        <div class="cards">
+            <div class="card">
+                <h2>Temperatura</h2>
+                <div class="value" id="temp">--</div>
+                <div class="unit">°C</div>
+            </div>
+            
+            <div class="card">
+                <h2>Humedad</h2>
+                <div class="value" id="hum">--</div>
+                <div class="unit">%</div>
+            </div>
+        </div>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>
