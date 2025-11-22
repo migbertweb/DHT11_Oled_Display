@@ -1,32 +1,82 @@
-# _Sample project_
+# DHT11 Sensor with OLED Display on ESP32
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+Este proyecto implementa la lectura de un sensor de temperatura y humedad DHT11 y muestra los resultados en una pantalla OLED utilizando un microcontrolador ESP32. El proyecto está desarrollado utilizando el framework ESP-IDF.
 
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
+## Características
 
+- Lectura de temperatura y humedad del sensor DHT11
+- Visualización en tiempo real en pantalla OLED SSD1306
+- Interfaz I2C para la comunicación con la pantalla
+- Fácil de configurar y personalizar
+- Código documentado y modular
 
+## Hardware Requerido
 
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
+- Placa ESP32 (probado con ESP32-C3)
+- Sensor DHT11
+- Pantalla OLED SSD1306 (128x64 píxeles)
+- Resistencias de pull-up (si son necesarias)
+- Cables de conexión
 
-## Example folder contents
+## Conexiones
 
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
+### DHT11
+- VCC → 3.3V
+- DATA → GPIO3
+- GND → GND
 
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
-files that provide set of directives and instructions describing the project's source files and targets
-(executable, library, or both). 
+### Pantalla OLED SSD1306 (I2C)
+- VCC → 3.3V
+- GND → GND
+- SCL → GPIO8 (configurable)
+- SDA → GPIO10 (configurable)
 
-Below is short explanation of remaining files in the project folder.
+## Configuración
+
+1. Clona el repositorio:
+   ```bash
+   git clone https://github.com/migbertweb/DHT11_Oled_Info.git
+   cd DHT11_Oled_Info
+   ```
+
+2. Configura el proyecto con `menuconfig` para ajustar los pines según tu hardware:
+   ```bash
+   idf.py menuconfig
+   ```
+
+3. Compila y flashea el proyecto:
+   ```bash
+   idf.py build
+   idf.py -p /dev/ttyUSB0 flash monitor
+   ```
+   (Reemplaza `/dev/ttyUSB0` con el puerto serie correspondiente)
+
+## Estructura del Proyecto
 
 ```
-├── CMakeLists.txt
-├── main
-│   ├── CMakeLists.txt
-│   └── main.c
-└── README.md                  This is the file you are currently reading
+DHT11_Oled_Info/
+├── components/     # Componentes personalizados
+│   ├── dht/       # Controlador DHT11
+│   └── ssd1306/   # Controlador pantalla OLED
+├── main/          
+│   └── main.c     # Código principal de la aplicación
+├── CMakeLists.txt # Configuración del sistema de compilación
+└── sdkconfig      # Configuración del proyecto
 ```
-Additionally, the sample project contains Makefile and component.mk files, used for the legacy Make based build system. 
-They are not used or needed when building with CMake and idf.py.
+
+## Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
+
+## Autor
+
+Migbertweb - [GitHub](https://github.com/migbertweb)
+
+## Agradecimientos
+
+- A los desarrolladores de ESP-IDF
+- A los contribuidores de las bibliotecas DHT y SSD1306
+
+---
+
+**Nota**: Este proyecto usa Licencia MIT. Se recomienda (no obliga) mantener derivados como código libre, especialmente para fines educativos.
