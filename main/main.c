@@ -4,8 +4,8 @@
  *              Este archivo demuestra la inicialización y uso básico de la biblioteca SSD1306
  *              con soporte para interfaces I2C y SPI.
  * Autor: migbertweb
- * Fecha: 16/11/2025
- * Repositorio: https://github.com/migbertweb/oled_ssd1306
+ * Fecha: 21/11/2025
+ * Repositorio: https://github.com/migbertweb/DHT11_Oled_Info
  * Licencia: MIT License
  * 
  * Uso: Este archivo contiene el punto de entrada de la aplicación y demuestra cómo:
