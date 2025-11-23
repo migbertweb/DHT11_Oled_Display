@@ -45,6 +45,9 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+// Variable global para almacenar la dirección IP
+char ip_address[16] = "Conectando...";
+
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
@@ -92,7 +95,9 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         ESP_LOGI(TAG,"connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        // Formatear la dirección IP
+        snprintf(ip_address, sizeof(ip_address), IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(TAG, "got ip: %s", ip_address);
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
@@ -535,6 +540,9 @@ void dht11_task(void *pvParameters)
     
     // Mostrar título grande
     ssd1306_display_text(&oled_dev, 0, "DHT11", 5, false);
+    
+    // Mostrar dirección IP en la línea 1
+    ssd1306_display_text(&oled_dev, 1, ip_address, strlen(ip_address), false);
     
     // Mostrar encabezado fijo
     char header_line[20];
