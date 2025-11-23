@@ -1,5 +1,4 @@
-/**
- * Archivo: main.c
+ /* Archivo: main.c
  * Descripción: Sistema de monitoreo de temperatura y humedad con ESP32.
  *              Aplicación completa que integra sensor DHT11, pantalla OLED SSD1306,
  *              servidor web HTTP y comunicación WebSocket para visualización en tiempo real.
@@ -396,7 +395,7 @@ static esp_err_t js_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-static /**
+/**
  * @brief Inicia el servidor HTTP con soporte WebSocket
  * 
  * Inicializa y configura el servidor HTTP con los siguientes endpoints:
@@ -411,7 +410,7 @@ static /**
  * - esp_http_server.h
  * - http_server.h
  */
-httpd_handle_t start_webserver(void) {
+static httpd_handle_t start_webserver(void) {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
@@ -515,6 +514,33 @@ void send_ws_message(char *msg)
 SSD1306_t oled_dev;
 
 /**
+ * @brief Centra un texto en la pantalla OLED
+ * 
+ * @param text Texto a centrar
+ * @param line Línea donde se mostrará el texto (0-7)
+ * @param clear_line Si es true, limpia la línea antes de escribir
+ */
+ void display_centered_text(const char *text, int line, bool clear_line) {
+    if (clear_line) {
+        // Limpiar la línea con espacios (16 caracteres)
+        char empty_line[17] = "                "; // 16 espacios
+        ssd1306_display_text(&oled_dev, line, empty_line, 16, false);
+    }
+    
+    // Calcular la posición de inicio para centrar el texto
+    int text_len = strlen(text);
+    if (text_len > 16) text_len = 16;
+    int start_pos = (16 - text_len) / 2;
+    
+    // Crear un buffer con espacios a la izquierda y el texto
+    char buffer[17] = "                "; // 16 espacios + terminador nulo
+    strncpy(buffer + start_pos, text, text_len);
+    
+    // Mostrar el texto centrado
+    ssd1306_display_text(&oled_dev, line, buffer, 16, false);
+}
+
+/**
  * @brief Tarea para leer datos del sensor DHT11
  * 
  * Lee periódicamente la temperatura y humedad del sensor DHT11,
@@ -535,14 +561,14 @@ void dht11_task(void *pvParameters)
     ESP_LOGI(TAG, "Iniciando monitor DHT11 en GPIO %d", DHT_GPIO);
     
     // Inicializar pantalla
-  ssd1306_clear_screen(&oled_dev, false);
+   ssd1306_clear_screen(&oled_dev, false);
    ssd1306_contrast(&oled_dev, 0xff);
     
-    // Mostrar título grande
-    ssd1306_display_text(&oled_dev, 0, "DHT11", 5, false);
-    
-    // Mostrar dirección IP en la línea 1
-    ssd1306_display_text(&oled_dev, 1, ip_address, strlen(ip_address), false);
+    // Mostrar título grande centrado
+    display_centered_text("DHT11", 0, true);
+
+    // Mostrar dirección IP centrada
+    display_centered_text(ip_address, 1, true);
     
     // Mostrar encabezado fijo
     char header_line[20];
@@ -600,7 +626,7 @@ void dht11_task(void *pvParameters)
  * - Servidor web con soporte WebSocket
  * - Tarea de lectura del sensor DHT11
  * 
- * @note Esta función nunca retorna ya que ejecuta el planificador de FreeRTOS
+ * @note Esta función se ejecuta como una tarea de FreeRTOS. Al retornar, la tarea se elimina automáticamente.
  * 
  * @related_header
  * - nvs_flash.h
@@ -647,10 +673,10 @@ void app_main(void)
 	i2c_master_init(&oled_dev, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO, CONFIG_RESET_GPIO);
 #endif // CONFIG_I2C_INTERFACE
 
-#if CONFIG_FLIP
-	oled_dev._flip = true;
-	ESP_LOGW(tag, "Flip upside down");
-#endif
+// #if CONFIG_FLIP
+// 	oled_dev._flip = true;
+// 	ESP_LOGW(tag, "Flip upside down");
+// #endif
 
 #if CONFIG_SSD1306_128x64
 	ESP_LOGI(tag, "Panel is 128x64");
