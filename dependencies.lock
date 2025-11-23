@@ -11,6 +11,7 @@ dependencies:
     version: 5.5.1
 direct_dependencies:
 - esp-idf-lib/esp_idf_lib_helpers
-manifest_hash: 178019bdc40dbf363bc04b39b548d5bfd4df5c1417fb4e7320f69e67d3cd40a2
+- idf
+manifest_hash: 9d99d4faf49a09519a05f1de53571b07cd1117da35e422d6367f3d1bdc245d4f
 target: esp32c3
 version: 2.0.0
