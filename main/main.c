@@ -33,7 +33,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 
-#include <dht.h>
+#include "dht.h"
 #include "ssd1306.h"
 
 #include "esp_spiffs.h"
@@ -43,12 +43,20 @@
 #include "esp_http_server.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
+#include "mqtt_client.h"
 
 // Variable global para almacenar la dirección IP
 char ip_address[16] = "Conectando...";
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
+
+// Configuración MQTT
+#define BROKER_URI "mqtt://37.27.243.58:1883"
+#define MQTT_TOPIC "sensores/dht11"
+
+// Variable global para el cliente MQTT
+static esp_mqtt_client_handle_t mqtt_client;
 
 static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num = 0;
@@ -78,6 +86,43 @@ static const char *TAG = "DHT11_ALERTA";
  * @param event_id ID específico del evento
  * @param event_data Datos específicos del evento
  */
+/**
+ * @brief Maneja los eventos del cliente MQTT
+ */
+static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+    esp_mqtt_event_handle_t event = event_data;
+    
+    switch (event->event_id) {
+        case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG, "Conectado al servidor MQTT");
+            break;
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGW(TAG, "Desconectado del servidor MQTT");
+            break;
+        case MQTT_EVENT_PUBLISHED:
+            ESP_LOGD(TAG, "Mensaje publicado en MQTT");
+            break;
+        case MQTT_EVENT_ERROR:
+            ESP_LOGE(TAG, "Error en MQTT");
+            break;
+        default:
+            break;
+    }
+}
+
+/**
+ * @brief Inicializa el cliente MQTT
+ */
+static void mqtt_app_start(void) {
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = BROKER_URI,
+    };
+
+    mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    esp_mqtt_client_start(mqtt_client);
+}
+
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
@@ -600,6 +645,18 @@ void dht11_task(void *pvParameters)
             snprintf(lineChar, sizeof(lineChar), "Hum.: %.1f %%", hum_p);
             ssd1306_display_text(&oled_dev, 6, lineChar, strlen(lineChar), false);
 
+            // Publicar datos MQTT
+            char mqtt_msg[64];
+            snprintf(mqtt_msg, sizeof(mqtt_msg), "{\"temperatura\": %.1f, \"humedad\": %.1f}", temp_c, hum_p);
+            esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC, mqtt_msg, 0, 1, 0);
+            
+            // Mostrar mensaje de publicación exitosa
+            ESP_LOGI(TAG, "Datos publicados en MQTT: %s", mqtt_msg);
+            
+            // Mostrar mensaje en pantalla OLED
+            display_centered_text("Datos enviados", 7, true);
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+            
             // Enviar por WebSocket
             char json_msg[64];
             snprintf(json_msg, sizeof(json_msg), "{\"temp\": %.1f, \"hum\": %.1f}", temp_c, hum_p);
@@ -658,13 +715,15 @@ void app_main(void)
     // Conectar a WiFi
     wifi_init_sta();
 
-    // Iniciar el servidor web
+    // Iniciar servidor web
     server = start_webserver();
-    if (server == NULL) {
-        ESP_LOGE(TAG, "Error al iniciar el servidor web");
-        return;
-    }
-
+    
+    // Iniciar cliente MQTT
+    mqtt_app_start();
+    
+    // Iniciar tarea DHT11
+    xTaskCreate(dht11_task, "dht11_task", 4096, NULL, 5, NULL);
+    
 #if CONFIG_I2C_INTERFACE
 	ESP_LOGI(tag, "INTERFACE is i2c");
 	ESP_LOGI(tag, "CONFIG_SDA_GPIO=%d",CONFIG_SDA_GPIO);
