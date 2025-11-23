@@ -65,6 +65,17 @@ app_wifi_config_t wifi_creds;
 #define tag "SSD1306"
 static const char *TAG = "DHT11_ALERTA";
 
+/**
+ * @brief Manejador de eventos de WiFi e IP
+ * 
+ * Maneja varios eventos relacionados con WiFi e IP como conexión, desconexión
+ * y asignación de dirección IP.
+ * 
+ * @param arg Datos de usuario (no utilizado)
+ * @param event_base Base del evento (WIFI_EVENT o IP_EVENT)
+ * @param event_id ID específico del evento
+ * @param event_data Datos específicos del evento
+ */
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
@@ -87,6 +98,22 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
+/**
+ * @brief Monta el sistema de archivos SPIFFS
+ * 
+ * Inicializa y monta la partición SPIFFS (Sistema de Archivos en Memoria Flash SPI).
+ * El sistema de archivos se formateará si falla el montaje.
+ * 
+ * @return esp_err_t 
+ *         - ESP_OK si tiene éxito
+ *         - ESP_FAIL si falla el montaje o formateo
+ *         - ESP_ERR_NOT_FOUND si no se encuentra la partición
+ *         - Otros códigos de error de las funciones esp_spiffs_*
+ * 
+ * @related_header
+ * - esp_spiffs.h
+ * - esp_vfs.h
+ */
 esp_err_t mount_spiffs(void)
 {
     ESP_LOGI(TAG, "Initializing SPIFFS");
@@ -121,6 +148,24 @@ esp_err_t mount_spiffs(void)
     return ESP_OK;
 }
 
+/**
+ * @brief Lee la configuración WiFi desde SPIFFS
+ * 
+ * Lee el SSID y contraseña del archivo /spiffs/config.txt.
+ * La primera línea debe contener el SSID y la segunda la contraseña.
+ * 
+ * @return esp_err_t 
+ *         - ESP_OK si tiene éxito
+ *         - ESP_FAIL si no se puede abrir o leer el archivo
+ * 
+ * @note El archivo de configuración debe tener el formato:
+ *       SSID\n
+ *       CONTRASEÑA\n
+ * 
+ * @related_header
+ * - stdio.h (para operaciones de archivo)
+ * - string.h (para operaciones de cadenas)
+ */
 esp_err_t read_wifi_config(void)
 {
     FILE* f = fopen("/spiffs/config.txt", "r");
@@ -147,6 +192,20 @@ esp_err_t read_wifi_config(void)
     return ESP_OK;
 }
 
+/**
+ * @brief Inicializa WiFi en modo estación
+ * 
+ * Configura e inicia la interfaz WiFi en modo estación usando credenciales
+ * cargadas desde el archivo de configuración. Configura manejadores de eventos
+ * para el estado de conexión y asignación de dirección IP.
+ * 
+ * @note Esta función se bloquea hasta que se establece la conexión o falla
+ * 
+ * @related_header
+ * - esp_wifi.h
+ * - esp_event.h
+ * - esp_netif.h
+ */
 void wifi_init_sta(void)
 {
     s_wifi_event_group = xEventGroupCreate();
@@ -332,35 +391,22 @@ static esp_err_t js_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// static const httpd_uri_t ws = {
-//         .uri        = "/ws",
-//         .method     = HTTP_GET,
-//         .handler    = ws_handler,
-//         .user_ctx   = NULL
-// };
-
-// static const httpd_uri_t index_uri = {
-//     .uri       = "/",
-//     .method    = HTTP_GET,
-//     .handler   = index_handler,
-//     .user_ctx  = NULL
-// };
-
-// static const httpd_uri_t style_uri = {
-//     .uri       = "/style.css",
-//     .method    = HTTP_GET,
-//     .handler   = style_handler,
-//     .user_ctx  = NULL
-// };
-
-// static const httpd_uri_t js_uri = {
-//     .uri       = "/main.js",
-//     .method    = HTTP_GET,
-//     .handler   = js_handler,
-//     .user_ctx  = NULL
-// };
-
-static httpd_handle_t start_webserver(void) {
+static /**
+ * @brief Inicia el servidor HTTP con soporte WebSocket
+ * 
+ * Inicializa y configura el servidor HTTP con los siguientes endpoints:
+ * - GET / : Sirve la página HTML principal
+ * - GET /style.css : Sirve la hoja de estilos CSS
+ * - GET /script.js : Sirve el archivo JavaScript
+ * - GET /ws : Endpoint WebSocket para actualizaciones en tiempo real
+ * 
+ * @return httpd_handle_t Manejador del servidor HTTP iniciado
+ * 
+ * @related_header
+ * - esp_http_server.h
+ * - http_server.h
+ */
+httpd_handle_t start_webserver(void) {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
@@ -413,6 +459,16 @@ static httpd_handle_t start_webserver(void) {
     return NULL;
 }
 
+/**
+ * @brief Envía un mensaje a todos los clientes WebSocket conectados
+ * 
+ * @param msg Cadena terminada en nulo que contiene el mensaje a enviar
+ * 
+ * @note El mensaje se enviará a todos los clientes WebSocket actualmente conectados
+ * 
+ * @related_header
+ * - esp_http_server.h
+ */
 void send_ws_message(char *msg)
 {
     if (!server) {
@@ -453,6 +509,19 @@ void send_ws_message(char *msg)
 // Variable global para la estructura del display
 SSD1306_t oled_dev;
 
+/**
+ * @brief Tarea para leer datos del sensor DHT11
+ * 
+ * Lee periódicamente la temperatura y humedad del sensor DHT11,
+ * actualiza la pantalla OLED y envía los datos a los clientes WebSocket conectados.
+ * 
+ * @param pvParameters Parámetros de la tarea (no utilizado)
+ * 
+ * @related_header
+ * - dht.h
+ * - ssd1306.h
+ * - freertos/task.h
+ */
 void dht11_task(void *pvParameters)
 {
     char lineChar[20];
@@ -513,6 +582,23 @@ void dht11_task(void *pvParameters)
 }
 
 
+/**
+ * @brief Punto de entrada principal de la aplicación
+ * 
+ * Inicializa todos los componentes del sistema incluyendo:
+ * - NVS (Almacenamiento no volátil)
+ * - Sistema de archivos SPIFFS
+ * - Conexión WiFi
+ * - Servidor web con soporte WebSocket
+ * - Tarea de lectura del sensor DHT11
+ * 
+ * @note Esta función nunca retorna ya que ejecuta el planificador de FreeRTOS
+ * 
+ * @related_header
+ * - nvs_flash.h
+ * - freertos/task.h
+ * - esp_log.h
+ */
 void app_main(void)
 {
     // Inicializar NVS
