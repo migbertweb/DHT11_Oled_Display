@@ -71,7 +71,7 @@ typedef struct {
 
 app_wifi_config_t wifi_creds;
 
-#define DHT_GPIO 3      // Pin del sensor DHT11
+#define DHT_GPIO 4      // Pin del sensor DHT11
 #define tag "SSD1306"
 static const char *TAG = "DHT11_ALERTA";
 
@@ -555,8 +555,22 @@ void send_ws_message(char *msg)
     }
 }
 
+// Definiciones para el control del relé
+#define RELAY_GPIO 1        // Pin GPIO para el relé
+#define TEMP_THRESHOLD 29.0 // Umbral de temperatura en grados Celsius
+
 // Variable global para la estructura del display
 SSD1306_t oled_dev;
+
+/**
+ * @brief Inicializa el pin del relé como salida
+ */
+static void init_relay(void) {
+    gpio_reset_pin(RELAY_GPIO);
+    gpio_set_direction(RELAY_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(RELAY_GPIO, 0);  // Inicia con el relé apagado
+    ESP_LOGI(TAG, "Relé inicializado en GPIO %d", RELAY_GPIO);
+}
 
 /**
  * @brief Centra un texto en la pantalla OLED
@@ -635,10 +649,18 @@ void dht11_task(void *pvParameters)
             float temp_c = temperature / 10.0;
             float hum_p = humidity / 10.0;
             
-            // Mostrar lectura en consola
+            // Mostrar temperatura en la consola
             ESP_LOGI(TAG, "Temperatura: %.1f°C, Humedad: %.1f%%", temp_c, hum_p);
-            
-            // Mostrar en pantalla OLED
+
+            // Control del relé basado en la temperatura
+            if (temp_c > TEMP_THRESHOLD) {
+                gpio_set_level(RELAY_GPIO, 1);  // Enciende el relé
+                ESP_LOGI(TAG, "Temperatura alta (%.1f°C > %.1f°C) - Relé ACTIVADO", temp_c, TEMP_THRESHOLD);
+            } else {
+                gpio_set_level(RELAY_GPIO, 0);  // Apaga el relé
+            }
+
+            // Mostrar en la pantalla OLED
             snprintf(lineChar, sizeof(lineChar), "Temp.: %.1f C", temp_c);
             ssd1306_display_text(&oled_dev, 5, lineChar, strlen(lineChar), false);
             
@@ -730,6 +752,10 @@ void app_main(void)
 	ESP_LOGI(tag, "CONFIG_SCL_GPIO=%d",CONFIG_SCL_GPIO);
 	ESP_LOGI(tag, "CONFIG_RESET_GPIO=%d",CONFIG_RESET_GPIO);
 	i2c_master_init(&oled_dev, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO, CONFIG_RESET_GPIO);
+    ssd1306_init(&oled_dev, 128, 64);
+    
+    // Inicializar relé
+    init_relay();
 #endif // CONFIG_I2C_INTERFACE
 
 // #if CONFIG_FLIP
