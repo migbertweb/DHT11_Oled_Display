@@ -1,27 +1,45 @@
 /* Archivo: main.c
  * Descripción: Sistema de monitoreo de temperatura y humedad con ESP32.
  *              Aplicación completa que integra sensor DHT11, pantalla OLED
- * SSD1306, servidor web HTTP y comunicación WebSocket para visualización en
- * tiempo real.
+ * SSD1306, servidor web HTTP, comunicación WebSocket y MQTT para visualización
+ * y monitoreo remoto en tiempo real.
  *
  * Funcionalidades principales:
  *  - Lectura de temperatura y humedad del sensor DHT11
  *  - Visualización local en pantalla OLED SSD1306 (I2C)
+ *  - Control de relé basado en umbral de temperatura
  *  - Servidor web HTTP con archivos estáticos desde SPIFFS
  *  - Comunicación WebSocket para actualización en tiempo real
+ *  - Publicación de datos a servidor MQTT
  *  - Configuración WiFi mediante archivo de configuración en SPIFFS
  *  - Interfaz web moderna y responsive
+ *  - Registro y visualización de valores Mínimos y Máximos
+ *  - Manejo de eventos de conexión/desconexión WiFi
  *
  * Autor: migbertweb
- * Fecha: 21/11/2025
+ * Fecha: 29/11/2025
  * Repositorio: https://github.com/migbertweb/DHT11_Oled_Info
  * Licencia: MIT License
  *
  * Estructura del código:
- *  - Inicialización: NVS, SPIFFS, WiFi, servidor HTTP
+ *  - Inicialización: NVS, SPIFFS, WiFi, servidor HTTP, MQTT
  *  - Handlers HTTP: Página principal, CSS, JavaScript, WebSocket
  *  - Tarea DHT11: Lectura periódica del sensor y actualización de displays
  *  - WebSocket: Envío de datos en tiempo real a clientes conectados
+ *  - MQTT: Publicación de datos a broker MQTT
+ *  - Control de relé: Activa/desactiva salida según temperatura
+ *
+ * Funciones principales:
+ *  - dht11_task: Tarea para lectura periódica de sensores
+ *  - mqtt_event_handler: Manejo de eventos MQTT
+ *  - event_handler: Manejo de eventos WiFi e IP
+ *  - mount_spiffs: Montaje del sistema de archivos SPIFFS
+ *  - read_wifi_config: Lectura de credenciales WiFi
+ *  - wifi_init_sta: Inicialización de conexión WiFi
+ *  - start_webserver: Configuración e inicio del servidor web
+ *  - send_ws_message: Envío de mensajes a clientes WebSocket
+ *  - init_relay: Inicialización del pin de control del relé
+ *  - display_centered_text: Utilidad para mostrar texto centrado en OLED
  *
  * Nota: Este proyecto usa Licencia MIT. Se recomienda (no obliga) mantener
  * derivados como código libre, especialmente para fines educativos.
@@ -63,6 +81,12 @@ static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num = 0;
 static httpd_handle_t server = NULL;
 // static int hd_fd = -1; // WebSocket file descriptor
+
+// Variables para seguimiento de Min/Max
+static float min_temp = 100.0;
+static float max_temp = -100.0;
+static float min_hum = 100.0;
+static float max_hum = 0.0;
 
 // Estructura para credenciales WiFi
 typedef struct {
@@ -629,6 +653,8 @@ void dht11_task(void *pvParameters) {
   // Línea separadora
   ssd1306_display_text(&oled_dev, 7, "----------------", 16, false);
 
+  int display_counter = 0;
+
   while (1) {
     int16_t temperature, humidity;
     esp_err_t result = dht_read_data(DHT_TYPE_DHT11, (gpio_num_t)DHT_GPIO,
@@ -637,6 +663,12 @@ void dht11_task(void *pvParameters) {
     if (result == ESP_OK) {
       float temp_c = temperature / 10.0;
       float hum_p = humidity / 10.0;
+
+      // Actualizar Min/Max
+      if (temp_c < min_temp) min_temp = temp_c;
+      if (temp_c > max_temp) max_temp = temp_c;
+      if (hum_p < min_hum) min_hum = hum_p;
+      if (hum_p > max_hum) max_hum = hum_p;
 
       // Mostrar temperatura en la consola
       ESP_LOGI(TAG, "Temperatura: %.1f°C, Humedad: %.1f%%", temp_c, hum_p);
@@ -650,17 +682,29 @@ void dht11_task(void *pvParameters) {
         gpio_set_level(RELAY_GPIO, 0); // Apaga el relé
       }
 
-      // Mostrar en la pantalla OLED
-      snprintf(lineChar, sizeof(lineChar), "Temp.: %.1f C", temp_c);
-      ssd1306_display_text(&oled_dev, 5, lineChar, strlen(lineChar), false);
+      // Mostrar en la pantalla OLED (Alternar cada 3 ciclos)
+      display_counter++;
+      if (display_counter % 3 == 0) {
+          // Mostrar Min/Max
+          snprintf(lineChar, sizeof(lineChar), "Min:%.0f Max:%.0f", min_temp, max_temp);
+          ssd1306_display_text(&oled_dev, 5, lineChar, strlen(lineChar), false);
+          
+          snprintf(lineChar, sizeof(lineChar), "m:%.0f M:%.0f %%", min_hum, max_hum);
+          ssd1306_display_text(&oled_dev, 6, lineChar, strlen(lineChar), false);
+      } else {
+          // Mostrar Actual
+          snprintf(lineChar, sizeof(lineChar), "Temp.: %.1f C", temp_c);
+          ssd1306_display_text(&oled_dev, 5, lineChar, strlen(lineChar), false);
 
-      snprintf(lineChar, sizeof(lineChar), "Hum.: %.1f %%", hum_p);
-      ssd1306_display_text(&oled_dev, 6, lineChar, strlen(lineChar), false);
+          snprintf(lineChar, sizeof(lineChar), "Hum.: %.1f %%", hum_p);
+          ssd1306_display_text(&oled_dev, 6, lineChar, strlen(lineChar), false);
+      }
 
-      // Publicar datos MQTT
-      char mqtt_msg[64];
+      // Publicar datos MQTT (Incluyendo Min/Max)
+      char mqtt_msg[128];
       snprintf(mqtt_msg, sizeof(mqtt_msg),
-               "{\"temperatura\": %.1f, \"humedad\": %.1f}", temp_c, hum_p);
+               "{\"temperatura\": %.1f, \"humedad\": %.1f, \"min_temp\": %.1f, \"max_temp\": %.1f}", 
+               temp_c, hum_p, min_temp, max_temp);
       esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC, mqtt_msg, 0, 1, 0);
 
       // Mostrar mensaje de publicación exitosa
@@ -670,10 +714,11 @@ void dht11_task(void *pvParameters) {
       display_centered_text("Datos enviados", 7, true);
       vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-      // Enviar por WebSocket
-      char json_msg[64];
-      snprintf(json_msg, sizeof(json_msg), "{\"temp\": %.1f, \"hum\": %.1f}",
-               temp_c, hum_p);
+      // Enviar por WebSocket (Incluyendo Min/Max)
+      char json_msg[128];
+      snprintf(json_msg, sizeof(json_msg), 
+               "{\"temp\": %.1f, \"hum\": %.1f, \"min_t\": %.1f, \"max_t\": %.1f}",
+               temp_c, hum_p, min_temp, max_temp);
       send_ws_message(json_msg);
 
     } else {
@@ -737,8 +782,8 @@ void app_main(void) {
   // Iniciar cliente MQTT
   mqtt_app_start();
 
-  // Iniciar tarea DHT11
-  xTaskCreate(dht11_task, "dht11_task", 4096, NULL, 5, NULL);
+  // Iniciar tarea DHT11 - MOVIDO AL FINAL PARA EVITAR DUPLICADOS
+  // xTaskCreate(dht11_task, "dht11_task", 4096, NULL, 5, NULL);
 
 #if CONFIG_I2C_INTERFACE
   ESP_LOGI(tag, "INTERFACE is i2c");
