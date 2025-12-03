@@ -63,6 +63,11 @@
 #include "lwip/sys.h"
 #include "mqtt_client.h"
 #include "nvs_flash.h"
+#include "esp_http_client.h"
+#include "esp_crt_bundle.h"
+#include "cJSON.h"
+#include "esp_tls.h"
+#include "esp_timer.h"
 
 // Variable global para almacenar la dirección IP
 char ip_address[16] = "Conectando...";
@@ -75,6 +80,14 @@ char ip_address[16] = "Conectando...";
 #define MQTT_TOPIC "sensores/dht11"
 #define MQTT_USER "piro"         // REEMPLAZAR con tu usuario
 #define MQTT_PASSWORD "gpiro2178" // REEMPLAZAR con tu contraseña
+
+// Telegram Configuration
+#define TELEGRAM_TOKEN "8283534449:AAHSVCJ_69nlvs82i0pJQMxTunJfTy_mxv4"
+#define TELEGRAM_CHAT_ID "10165249"
+#define TELEGRAM_API_URL "https://api.telegram.org/bot"
+
+static int64_t last_alert_time = 0;
+#define ALERT_COOLDOWN_MS 60000 // 1 minute cooldown
 
 // Variable global para el cliente MQTT
 static esp_mqtt_client_handle_t mqtt_client;
@@ -89,6 +102,8 @@ static float min_temp = 100.0;
 static float max_temp = -100.0;
 static float min_hum = 100.0;
 static float max_hum = 0.0;
+static float current_temp = 0.0;
+static float current_hum = 0.0;
 
 // Estructura para credenciales WiFi
 typedef struct {
@@ -597,7 +612,7 @@ SSD1306_t oled_dev;
  */
 static void init_relay(void) {
   gpio_reset_pin(RELAY_GPIO);
-  gpio_set_direction(RELAY_GPIO, GPIO_MODE_OUTPUT);
+  gpio_set_direction(RELAY_GPIO, GPIO_MODE_INPUT_OUTPUT);
   gpio_set_level(RELAY_GPIO, 0); // Inicia con el relé apagado
   
   gpio_reset_pin(LED_GPIO);
@@ -633,6 +648,134 @@ void display_centered_text(const char *text, int line, bool clear_line) {
 
   // Mostrar el texto centrado
   ssd1306_display_text(&oled_dev, line, buffer, 16, false);
+}
+
+/**
+ * @brief Send message to Telegram
+ */
+void send_telegram_message(const char *message) {
+    char url[512];
+    
+    snprintf(url, sizeof(url), "%s%s/sendMessage", TELEGRAM_API_URL, TELEGRAM_TOKEN);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_POST,
+        .transport_type = HTTP_TRANSPORT_OVER_SSL,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .timeout_ms = 5000,
+    };
+    
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+        ESP_LOGE(TAG, "Failed to init HTTP client");
+        return;
+    }
+
+    // Create JSON payload
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "chat_id", TELEGRAM_CHAT_ID);
+    cJSON_AddStringToObject(root, "text", message);
+    char *post_data = cJSON_PrintUnformatted(root);
+
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_post_field(client, post_data, strlen(post_data));
+
+    esp_err_t err = esp_http_client_perform(client);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Telegram message sent: %s", message);
+    } else {
+        ESP_LOGE(TAG, "Failed to send Telegram message: %s", esp_err_to_name(err));
+    }
+
+    cJSON_Delete(root);
+    free(post_data);
+    esp_http_client_cleanup(client);
+}
+
+/**
+ * @brief Handle Telegram Updates (Commands)
+ */
+void handle_telegram_updates(void) {
+    static int32_t last_update_id = 0;
+    char url[512];
+    
+    snprintf(url, sizeof(url), "%s%s/getUpdates?offset=%ld&timeout=0", 
+             TELEGRAM_API_URL, TELEGRAM_TOKEN, (long)(last_update_id + 1));
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_GET,
+        .transport_type = HTTP_TRANSPORT_OVER_SSL,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .timeout_ms = 10000,
+    };
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) return;
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err == ESP_OK) {
+        int content_length = esp_http_client_fetch_headers(client);
+        if (content_length > 0) {
+            char *buffer = malloc(content_length + 1);
+            if (buffer) {
+                int read_len = esp_http_client_read_response(client, buffer, content_length);
+                buffer[read_len] = 0;
+
+                cJSON *root = cJSON_Parse(buffer);
+                if (root) {
+                    cJSON *result = cJSON_GetObjectItem(root, "result");
+                    if (cJSON_IsArray(result)) {
+                        cJSON *update = NULL;
+                        cJSON_ArrayForEach(update, result) {
+                            cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
+                            if (update_id) {
+                                last_update_id = update_id->valueint;
+                            }
+
+                            cJSON *message = cJSON_GetObjectItem(update, "message");
+                            if (message) {
+                                cJSON *text = cJSON_GetObjectItem(message, "text");
+                                if (text && cJSON_IsString(text)) {
+                                    ESP_LOGI(TAG, "Received command: %s", text->valuestring);
+                                    
+                                    if (strncmp(text->valuestring, "/status", 7) == 0) {
+                                        char status_msg[128];
+                                        snprintf(status_msg, sizeof(status_msg), 
+                                                 "Status:\nTemp: %.1f°C\nHum: %.1f%%\nRelay: %s", 
+                                                 current_temp, current_hum, 
+                                                 gpio_get_level(RELAY_GPIO) ? "ON" : "OFF");
+                                        send_telegram_message(status_msg);
+                                    } else if (strncmp(text->valuestring, "/relay", 6) == 0) {
+                                        char relay_msg[64];
+                                        snprintf(relay_msg, sizeof(relay_msg), "Relay is %s", 
+                                                 gpio_get_level(RELAY_GPIO) ? "ON" : "OFF");
+                                        send_telegram_message(relay_msg);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    cJSON_Delete(root);
+                }
+                free(buffer);
+            }
+        }
+    }
+    esp_http_client_cleanup(client);
+}
+
+/**
+ * @brief Telegram Bot Task
+ */
+void telegram_bot_task(void *pvParameters) {
+    ESP_LOGI(TAG, "Telegram Bot Task Started");
+    while (1) {
+        // Check for updates
+        handle_telegram_updates();
+        vTaskDelay(pdMS_TO_TICKS(2000)); // Poll every 2 seconds
+    }
 }
 
 /**
@@ -687,6 +830,9 @@ void dht11_task(void *pvParameters) {
     if (result == ESP_OK) {
       float temp_c = temperature / 10.0;
       float hum_p = humidity / 10.0;
+      
+      current_temp = temp_c;
+      current_hum = hum_p;
 
       // Actualizar Min/Max
       if (temp_c < min_temp) min_temp = temp_c;
@@ -708,6 +854,15 @@ void dht11_task(void *pvParameters) {
 
         ESP_LOGI(TAG, "Temperatura alta (%.1f°C > %.1f°C) - Relé ACTIVADO",
                  temp_c, TEMP_THRESHOLD);
+                 
+        // Telegram Alert
+        int64_t now = esp_timer_get_time() / 1000;
+        if (now - last_alert_time > ALERT_COOLDOWN_MS) {
+            char alert_msg[128];
+            snprintf(alert_msg, sizeof(alert_msg), "⚠️ ALERTA: Temperatura Alta!\nValor: %.1f°C\nUmbral: %.1f°C", temp_c, TEMP_THRESHOLD);
+            send_telegram_message(alert_msg);
+            last_alert_time = now;
+        }
       } else {
         gpio_set_level(RELAY_GPIO, 0); // Apaga el relé
         
@@ -863,4 +1018,7 @@ void app_main(void) {
   xTaskCreate(dht11_task, "dht11_task", 4096, NULL, 5, NULL);
 
   ESP_LOGI(TAG, "Sistema iniciado - Esperando lecturas...");
+
+  // Start Telegram Bot Task
+  xTaskCreate(telegram_bot_task, "telegram_task", 8192, NULL, 5, NULL);
 }
