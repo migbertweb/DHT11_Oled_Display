@@ -73,6 +73,8 @@ char ip_address[16] = "Conectando...";
 // Configuración MQTT
 #define BROKER_URI "mqtt://37.27.243.58:1883"
 #define MQTT_TOPIC "sensores/dht11"
+#define MQTT_USER "piro"         // REEMPLAZAR con tu usuario
+#define MQTT_PASSWORD "gpiro2178" // REEMPLAZAR con tu contraseña
 
 // Variable global para el cliente MQTT
 static esp_mqtt_client_handle_t mqtt_client;
@@ -142,6 +144,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 static void mqtt_app_start(void) {
   esp_mqtt_client_config_t mqtt_cfg = {
       .broker.address.uri = BROKER_URI,
+      .credentials.username = MQTT_USER,
+      .credentials.authentication.password = MQTT_PASSWORD,
   };
 
   mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
@@ -568,7 +572,22 @@ void send_ws_message(char *msg) {
 
 // Definiciones para el control del relé
 #define RELAY_GPIO 1        // Pin GPIO para el relé
-#define TEMP_THRESHOLD 29.0 // Umbral de temperatura en grados Celsius
+#define TEMP_THRESHOLD 30.0 // Umbral de temperatura en grados Celsius
+#define LED_GPIO 21         // Pin GPIO para el LED indicador
+
+static TaskHandle_t blink_task_handle = NULL;
+
+/**
+ * @brief Tarea para parpadear el LED
+ */
+void blink_led_task(void *pvParameters) {
+  while (1) {
+    gpio_set_level(LED_GPIO, 1);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    gpio_set_level(LED_GPIO, 0);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+}
 
 // Variable global para la estructura del display
 SSD1306_t oled_dev;
@@ -580,7 +599,12 @@ static void init_relay(void) {
   gpio_reset_pin(RELAY_GPIO);
   gpio_set_direction(RELAY_GPIO, GPIO_MODE_OUTPUT);
   gpio_set_level(RELAY_GPIO, 0); // Inicia con el relé apagado
-  ESP_LOGI(TAG, "Relé inicializado en GPIO %d", RELAY_GPIO);
+  
+  gpio_reset_pin(LED_GPIO);
+  gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+  gpio_set_level(LED_GPIO, 0); // Inicia con el LED apagado
+
+  ESP_LOGI(TAG, "Relé inicializado en GPIO %d, LED en GPIO %d", RELAY_GPIO, LED_GPIO);
 }
 
 /**
@@ -676,10 +700,23 @@ void dht11_task(void *pvParameters) {
       // Control del relé basado en la temperatura
       if (temp_c > TEMP_THRESHOLD) {
         gpio_set_level(RELAY_GPIO, 1); // Enciende el relé
+        
+        // Iniciar parpadeo si no está activo
+        if (blink_task_handle == NULL) {
+          xTaskCreate(blink_led_task, "blink_led_task", 2048, NULL, 5, &blink_task_handle);
+        }
+
         ESP_LOGI(TAG, "Temperatura alta (%.1f°C > %.1f°C) - Relé ACTIVADO",
                  temp_c, TEMP_THRESHOLD);
       } else {
         gpio_set_level(RELAY_GPIO, 0); // Apaga el relé
+        
+        // Detener parpadeo si está activo
+        if (blink_task_handle != NULL) {
+          vTaskDelete(blink_task_handle);
+          blink_task_handle = NULL;
+          gpio_set_level(LED_GPIO, 0); // Asegurar que el LED quede apagado
+        }
       }
 
       // Mostrar en la pantalla OLED (Alternar cada 3 ciclos)
@@ -714,11 +751,12 @@ void dht11_task(void *pvParameters) {
       display_centered_text("Datos enviados", 7, true);
       vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-      // Enviar por WebSocket (Incluyendo Min/Max)
-      char json_msg[128];
+      // Enviar por WebSocket (Incluyendo Min/Max, estado del relé y límite)
+      char json_msg[200]; // Aumentado el tamaño del buffer
+      int relay_state = (temp_c > TEMP_THRESHOLD) ? 1 : 0;
       snprintf(json_msg, sizeof(json_msg), 
-               "{\"temp\": %.1f, \"hum\": %.1f, \"min_t\": %.1f, \"max_t\": %.1f}",
-               temp_c, hum_p, min_temp, max_temp);
+               "{\"temp\": %.1f, \"hum\": %.1f, \"min_t\": %.1f, \"max_t\": %.1f, \"relay\": %d, \"limit\": %.1f}",
+               temp_c, hum_p, min_temp, max_temp, relay_state, TEMP_THRESHOLD);
       send_ws_message(json_msg);
 
     } else {
