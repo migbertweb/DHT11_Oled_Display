@@ -18,6 +18,9 @@
 const statusEl = document.getElementById('status');
 const tempEl = document.getElementById('temp');
 const humEl = document.getElementById('hum');
+const relayStatusEl = document.getElementById('relay-status');
+const relayCardEl = document.getElementById('relay-card');
+const limitValEl = document.getElementById('limit-val');
 
 // Configuración de la URL WebSocket
 // Detecta automáticamente el protocolo (ws:// o wss://) según la página
@@ -96,6 +99,22 @@ function initWebSocket() {
             // Actualizar humedad si está presente
             if (data.hum !== undefined) {
                 humEl.textContent = data.hum.toFixed(1);
+            }
+
+            // Actualizar límite si está presente
+            if (data.limit !== undefined) {
+                limitValEl.textContent = data.limit.toFixed(1);
+            }
+
+            // Actualizar estado del relé
+            if (data.relay !== undefined) {
+                if (data.relay === 1) {
+                    relayStatusEl.textContent = "ON";
+                    relayCardEl.classList.add("active");
+                } else {
+                    relayStatusEl.textContent = "OFF";
+                    relayCardEl.classList.remove("active");
+                }
             }
         } catch (e) {
             console.error('Error al parsear JSON:', e);

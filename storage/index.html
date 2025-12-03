@@ -48,6 +48,23 @@
                 <div class="unit">%</div>
             </div>
         </div>
+        
+        <!-- Grid de tarjetas para estado del relé -->
+        <div class="cards">
+            <!-- Tarjeta de Estado del Relé -->
+            <div class="card" id="relay-card">
+                <h2>Estado Relé</h2>
+                <div class="value" id="relay-status">--</div>
+                <div class="unit">GPIO 1</div>
+            </div>
+            
+            <!-- Tarjeta de Límite -->
+            <div class="card">
+                <h2>Límite Temp.</h2>
+                <div class="value" id="limit-val">--</div>
+                <div class="unit">°C</div>
+            </div>
+        </div>
     </div>
     
     <!-- Script para manejo de WebSocket y actualización de datos -->
