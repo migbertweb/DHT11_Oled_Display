@@ -1,36 +1,39 @@
 /* Archivo: main.c
  * Descripción: Sistema de monitoreo de temperatura y humedad con ESP32.
  *              Aplicación completa que integra sensor DHT11, pantalla OLED
- * SSD1306, servidor web HTTP, comunicación WebSocket y MQTT para visualización
- * y monitoreo remoto en tiempo real.
+ * SSD1306, servidor web HTTP, comunicación WebSocket, MQTT y Bot de Telegram
+ * para visualización, monitoreo y control remoto en tiempo real.
  *
  * Funcionalidades principales:
  *  - Lectura de temperatura y humedad del sensor DHT11
  *  - Visualización local en pantalla OLED SSD1306 (I2C)
- *  - Control de relé basado en umbral de temperatura
+ *  - Control de relé basado en umbral de temperatura con indicador LED
  *  - Servidor web HTTP con archivos estáticos desde SPIFFS
  *  - Comunicación WebSocket para actualización en tiempo real
  *  - Publicación de datos a servidor MQTT
+ *  - Integración con Bot de Telegram para alertas y comandos (/status, /relay)
  *  - Configuración WiFi mediante archivo de configuración en SPIFFS
  *  - Interfaz web moderna y responsive
  *  - Registro y visualización de valores Mínimos y Máximos
  *  - Manejo de eventos de conexión/desconexión WiFi
  *
  * Autor: migbertweb
- * Fecha: 29/11/2025
+ * Fecha: 04/12/2025
  * Repositorio: https://github.com/migbertweb/DHT11_Oled_Info
  * Licencia: MIT License
  *
  * Estructura del código:
- *  - Inicialización: NVS, SPIFFS, WiFi, servidor HTTP, MQTT
+ *  - Inicialización: NVS, SPIFFS, WiFi, servidor HTTP, MQTT, Telegram
  *  - Handlers HTTP: Página principal, CSS, JavaScript, WebSocket
  *  - Tarea DHT11: Lectura periódica del sensor y actualización de displays
  *  - WebSocket: Envío de datos en tiempo real a clientes conectados
  *  - MQTT: Publicación de datos a broker MQTT
- *  - Control de relé: Activa/desactiva salida según temperatura
+ *  - Telegram: Envío de alertas y manejo de comandos
+ *  - Control de relé: Activa/desactiva salida e indicador LED según temperatura
  *
  * Funciones principales:
  *  - dht11_task: Tarea para lectura periódica de sensores
+ *  - telegram_bot_task: Tarea para manejar actualizaciones de Telegram
  *  - mqtt_event_handler: Manejo de eventos MQTT
  *  - event_handler: Manejo de eventos WiFi e IP
  *  - mount_spiffs: Montaje del sistema de archivos SPIFFS
@@ -38,7 +41,8 @@
  *  - wifi_init_sta: Inicialización de conexión WiFi
  *  - start_webserver: Configuración e inicio del servidor web
  *  - send_ws_message: Envío de mensajes a clientes WebSocket
- *  - init_relay: Inicialización del pin de control del relé
+ *  - init_relay: Inicialización de pines de control (relé y LED)
+ *  - blink_led_task: Tarea para parpadeo de LED indicador
  *  - display_centered_text: Utilidad para mostrar texto centrado en OLED
  *
  * Nota: Este proyecto usa Licencia MIT. Se recomienda (no obliga) mantener
@@ -593,7 +597,12 @@ void send_ws_message(char *msg) {
 static TaskHandle_t blink_task_handle = NULL;
 
 /**
- * @brief Tarea para parpadear el LED
+ * @brief Tarea para parpadear el LED indicador
+ * 
+ * Esta tarea se activa cuando el relé está encendido para proporcionar
+ * una indicación visual intermitente.
+ * 
+ * @param pvParameters Parámetros de la tarea (no utilizado)
  */
 void blink_led_task(void *pvParameters) {
   while (1) {
@@ -608,7 +617,10 @@ void blink_led_task(void *pvParameters) {
 SSD1306_t oled_dev;
 
 /**
- * @brief Inicializa el pin del relé como salida
+ * @brief Inicializa los pines de control (Relé y LED)
+ * 
+ * Configura el GPIO del relé como entrada/salida y el GPIO del LED como salida.
+ * Inicializa ambos en estado bajo (apagado).
  */
 static void init_relay(void) {
   gpio_reset_pin(RELAY_GPIO);
@@ -651,7 +663,12 @@ void display_centered_text(const char *text, int line, bool clear_line) {
 }
 
 /**
- * @brief Send message to Telegram
+ * @brief Envía un mensaje a través del Bot de Telegram
+ * 
+ * Realiza una petición HTTPS POST a la API de Telegram para enviar un mensaje
+ * al chat ID configurado.
+ * 
+ * @param message Mensaje de texto a enviar
  */
 void send_telegram_message(const char *message) {
     char url[512];
@@ -694,7 +711,12 @@ void send_telegram_message(const char *message) {
 }
 
 /**
- * @brief Handle Telegram Updates (Commands)
+ * @brief Maneja las actualizaciones (comandos) de Telegram
+ * 
+ * Consulta la API de Telegram mediante long-polling para recibir nuevos mensajes.
+ * Procesa comandos como:
+ * - /status: Envía el estado actual de temperatura, humedad y relé.
+ * - /relay: Envía el estado actual del relé.
  */
 void handle_telegram_updates(void) {
     static int32_t last_update_id = 0;
@@ -767,7 +789,12 @@ void handle_telegram_updates(void) {
 }
 
 /**
- * @brief Telegram Bot Task
+ * @brief Tarea principal del Bot de Telegram
+ * 
+ * Ejecuta un bucle infinito que consulta periódicamente las actualizaciones
+ * de Telegram para procesar comandos entrantes.
+ * 
+ * @param pvParameters Parámetros de la tarea (no utilizado)
  */
 void telegram_bot_task(void *pvParameters) {
     ESP_LOGI(TAG, "Telegram Bot Task Started");
